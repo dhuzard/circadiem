@@ -31,7 +31,10 @@ async function requestJson(
       {
         role: "user",
         content: [
-          { type: "text", text: buildUserPrompt(label, alignedToDark, vcgBand) },
+          {
+            type: "text",
+            text: buildUserPrompt(label, alignedToDark, vcgBand),
+          },
           {
             type: "image_url",
             image_url: {
@@ -76,7 +79,9 @@ export async function analyzeImageWithOpenAI(args: {
   try {
     parsed = JSON.parse(stripFence(raw));
   } catch {
-    console.warn(`[circadiem] JSON parse failed for "${args.label}", attempting repair.`);
+    console.warn(
+      `[circadiem] JSON parse failed for "${args.label}", attempting repair.`,
+    );
     const repairResponse = await client.chat.completions.create({
       model: args.model,
       response_format: { type: "json_object" },
@@ -93,7 +98,9 @@ export async function analyzeImageWithOpenAI(args: {
     try {
       parsed = JSON.parse(stripFence(raw));
     } catch {
-      throw new Error("JSON repair failed: model returned non-parseable output.");
+      throw new Error(
+        "JSON repair failed: model returned non-parseable output.",
+      );
     }
   }
 

@@ -8,14 +8,14 @@
 
 Circadiem applies a fixed rubric to each plot and produces per-image scores, notes, flags, and a confidence level:
 
-| Marker | What is scored |
-|---|---|
-| `baseline_light` | Low-and-flat baseline during the light phase |
-| `dark_onset_burst` | Abrupt activation burst at dark onset |
-| `dark_irregularity` | High but irregular dark-phase activity |
-| `midnight_fragmentation` | Midnight waviness vs. smooth plateau |
-| `pre_light_decline` | Decline in activity before lights-on |
-| `pre_dark_anticipation` | Anticipatory increase before the next dark cycle |
+| Marker                   | What is scored                                   |
+| ------------------------ | ------------------------------------------------ |
+| `baseline_light`         | Low-and-flat baseline during the light phase     |
+| `dark_onset_burst`       | Abrupt activation burst at dark onset            |
+| `dark_irregularity`      | High but irregular dark-phase activity           |
+| `midnight_fragmentation` | Midnight waviness vs. smooth plateau             |
+| `pre_light_decline`      | Decline in activity before lights-on             |
+| `pre_dark_anticipation`  | Anticipatory increase before the next dark cycle |
 
 Each marker is scored `0–3`. Every result also carries a `confidence` level (`low` / `med` / `high`) and a free-text `notes` field up to 1 600 characters.
 
@@ -87,10 +87,10 @@ Copy `.env.example` to `.env` and adjust as needed:
 cp .env.example .env
 ```
 
-| Variable | Default | Description |
-|---|---|---|
-| `PORT` | `5174` | Port the backend listens on |
-| `CORS_ORIGIN` | `*` | Allowed CORS origin(s); set to your domain in production |
+| Variable      | Default | Description                                              |
+| ------------- | ------- | -------------------------------------------------------- |
+| `PORT`        | `5174`  | Port the backend listens on                              |
+| `CORS_ORIGIN` | `*`     | Allowed CORS origin(s); set to your domain in production |
 
 OpenAI API keys are **never stored server-side**. They are provided in the UI and forwarded per-request as a bearer token.
 
@@ -155,18 +155,18 @@ Analyze one or more circadian activity PNG plots.
 
 **Headers**
 
-| Header | Required | Description |
-|---|---|---|
-| `Authorization` | Yes | `Bearer <OPENAI_API_KEY>` |
+| Header          | Required | Description               |
+| --------------- | -------- | ------------------------- |
+| `Authorization` | Yes      | `Bearer <OPENAI_API_KEY>` |
 
 **Body** (`multipart/form-data`)
 
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `images` | File(s) | Yes | PNG files, max 20 files × 10 MB |
-| `labels` | JSON string | No | `["Label A", "Label B"]` — one per file; defaults to filename stem |
-| `model` | string | No | OpenAI model ID (default `gpt-4o-mini`) |
-| `aligned_to_dark` | string | No | `"true"` or `"false"` (default `"true"`) |
+| Field             | Type        | Required | Description                                                        |
+| ----------------- | ----------- | -------- | ------------------------------------------------------------------ |
+| `images`          | File(s)     | Yes      | PNG files, max 20 files × 10 MB                                    |
+| `labels`          | JSON string | No       | `["Label A", "Label B"]` — one per file; defaults to filename stem |
+| `model`           | string      | No       | OpenAI model ID (default `gpt-4o-mini`)                            |
+| `aligned_to_dark` | string      | No       | `"true"` or `"false"` (default `"true"`)                           |
 
 **Response** `200 OK`
 
@@ -208,11 +208,11 @@ When a single file fails analysis it returns an error row rather than failing th
 
 **Error responses**
 
-| Status | Condition |
-|---|---|
-| `400` | No PNG files, invalid MIME type, malformed labels JSON, invalid model ID, image > 8 192 × 8 192 px |
-| `401` | Missing or malformed bearer token |
-| `429` | Rate limit exceeded (10 req/min/IP) |
+| Status | Condition                                                                                          |
+| ------ | -------------------------------------------------------------------------------------------------- |
+| `400`  | No PNG files, invalid MIME type, malformed labels JSON, invalid model ID, image > 8 192 × 8 192 px |
+| `401`  | Missing or malformed bearer token                                                                  |
+| `429`  | Rate limit exceeded (10 req/min/IP)                                                                |
 
 ---
 

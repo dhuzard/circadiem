@@ -9,7 +9,10 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      "@circadiem/schema": resolve(__dirname, "../packages/schema/src/index.ts"),
+      "@circadiem/schema": resolve(
+        __dirname,
+        "../packages/schema/src/index.ts",
+      ),
     },
   },
   server: {
