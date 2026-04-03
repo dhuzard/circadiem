@@ -1,8 +1,11 @@
 import OpenAI from "openai";
 import { ZodError } from "zod";
-import { analysisResultSchema, type AnalysisResult } from "./schema.js";
+import {
+  analysisResultSchema,
+  type AnalysisResult,
+  type VcgBand,
+} from "./schema.js";
 import { SYSTEM_PROMPT, buildUserPrompt } from "./prompt.js";
-import { VCG_BAND } from "./constants.js";
 
 function stripFence(text: string) {
   return text
@@ -17,16 +20,18 @@ async function requestJson(
   imageBase64: string,
   label: string,
   alignedToDark: boolean,
+  vcgBand: string,
+  systemPrompt: string,
 ) {
   const response = await client.chat.completions.create({
     model,
     response_format: { type: "json_object" },
     messages: [
-      { role: "system", content: SYSTEM_PROMPT },
+      { role: "system", content: systemPrompt },
       {
         role: "user",
         content: [
-          { type: "text", text: buildUserPrompt(label, alignedToDark) },
+          { type: "text", text: buildUserPrompt(label, alignedToDark, vcgBand) },
           {
             type: "image_url",
             image_url: {
@@ -49,16 +54,22 @@ export async function analyzeImageWithOpenAI(args: {
   filename: string;
   alignedToDark: boolean;
   runId: string;
+  vcgBand: string;
+  systemPrompt?: string;
+  onProgress?: (phase: "start" | "done", label: string) => void;
 }): Promise<AnalysisResult> {
   const client = new OpenAI({ apiKey: args.apiKey, timeout: 60_000 });
   const imageBase64 = args.imageBuffer.toString("base64");
 
+  args.onProgress?.("start", args.label);
   let raw = await requestJson(
     client,
     args.model,
     imageBase64,
     args.label,
     args.alignedToDark,
+    args.vcgBand,
+    args.systemPrompt ?? SYSTEM_PROMPT,
   );
   let parsed: unknown;
 
@@ -92,17 +103,19 @@ export async function analyzeImageWithOpenAI(args: {
       : {};
 
   try {
-    return analysisResultSchema.parse({
+    const result = analysisResultSchema.parse({
       ...parsedObject,
       label: parsedObject.label ?? args.label,
       meta: {
         filename: args.filename,
         model: args.model,
         aligned_to_dark: args.alignedToDark,
-        vcg_band: VCG_BAND,
+        vcg_band: args.vcgBand as VcgBand,
         run_id: args.runId,
       },
     });
+    args.onProgress?.("done", args.label);
+    return result;
   } catch (error) {
     if (error instanceof ZodError) {
       throw new Error(

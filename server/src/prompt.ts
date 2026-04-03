@@ -12,10 +12,15 @@ export const SYSTEM_PROMPT = [
   "Return only valid JSON. Do not wrap it in markdown.",
 ].join("\n");
 
-export function buildUserPrompt(label: string, alignedToDark: boolean) {
+export function buildUserPrompt(
+  label: string,
+  alignedToDark: boolean,
+  vcgBand: string,
+) {
   return [
     `Analyze the PNG for label "${label}".`,
     `Assume aligned_to_dark=${alignedToDark}.`,
+    `VCG band shown as ${vcgBand}.`,
     "Return JSON with these fields:",
     "label, baseline_light, dark_onset_burst, dark_irregularity, midnight_fragmentation, pre_light_decline, pre_dark_anticipation, notes, flags, confidence",
     "Scores must be integers 0, 1, 2, or 3.",

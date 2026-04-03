@@ -4,19 +4,19 @@ export declare const resultMetaSchema: z.ZodObject<{
     filename: z.ZodString;
     model: z.ZodString;
     aligned_to_dark: z.ZodBoolean;
-    vcg_band: z.ZodLiteral<"+-2SD">;
+    vcg_band: z.ZodEnum<["+-2SD", "+-1SD", "+-3SD"]>;
     run_id: z.ZodString;
 }, "strip", z.ZodTypeAny, {
     filename: string;
     model: string;
     aligned_to_dark: boolean;
-    vcg_band: "+-2SD";
+    vcg_band: "+-2SD" | "+-1SD" | "+-3SD";
     run_id: string;
 }, {
     filename: string;
     model: string;
     aligned_to_dark: boolean;
-    vcg_band: "+-2SD";
+    vcg_band: "+-2SD" | "+-1SD" | "+-3SD";
     run_id: string;
 }>;
 export declare const analysisResultSchema: z.ZodObject<{
@@ -34,19 +34,19 @@ export declare const analysisResultSchema: z.ZodObject<{
         filename: z.ZodString;
         model: z.ZodString;
         aligned_to_dark: z.ZodBoolean;
-        vcg_band: z.ZodLiteral<"+-2SD">;
+        vcg_band: z.ZodEnum<["+-2SD", "+-1SD", "+-3SD"]>;
         run_id: z.ZodString;
     }, "strip", z.ZodTypeAny, {
         filename: string;
         model: string;
         aligned_to_dark: boolean;
-        vcg_band: "+-2SD";
+        vcg_band: "+-2SD" | "+-1SD" | "+-3SD";
         run_id: string;
     }, {
         filename: string;
         model: string;
         aligned_to_dark: boolean;
-        vcg_band: "+-2SD";
+        vcg_band: "+-2SD" | "+-1SD" | "+-3SD";
         run_id: string;
     }>;
 }, "strip", z.ZodTypeAny, {
@@ -64,7 +64,7 @@ export declare const analysisResultSchema: z.ZodObject<{
         filename: string;
         model: string;
         aligned_to_dark: boolean;
-        vcg_band: "+-2SD";
+        vcg_band: "+-2SD" | "+-1SD" | "+-3SD";
         run_id: string;
     };
 }, {
@@ -82,7 +82,7 @@ export declare const analysisResultSchema: z.ZodObject<{
         filename: string;
         model: string;
         aligned_to_dark: boolean;
-        vcg_band: "+-2SD";
+        vcg_band: "+-2SD" | "+-1SD" | "+-3SD";
         run_id: string;
     };
 }>;
@@ -93,19 +93,19 @@ export declare const analysisErrorSchema: z.ZodObject<{
         filename: z.ZodString;
         model: z.ZodString;
         aligned_to_dark: z.ZodBoolean;
-        vcg_band: z.ZodLiteral<"+-2SD">;
+        vcg_band: z.ZodEnum<["+-2SD", "+-1SD", "+-3SD"]>;
         run_id: z.ZodString;
     }, "strip", z.ZodTypeAny, {
         filename: string;
         model: string;
         aligned_to_dark: boolean;
-        vcg_band: "+-2SD";
+        vcg_band: "+-2SD" | "+-1SD" | "+-3SD";
         run_id: string;
     }, {
         filename: string;
         model: string;
         aligned_to_dark: boolean;
-        vcg_band: "+-2SD";
+        vcg_band: "+-2SD" | "+-1SD" | "+-3SD";
         run_id: string;
     }>;
 }, "strip", z.ZodTypeAny, {
@@ -114,7 +114,7 @@ export declare const analysisErrorSchema: z.ZodObject<{
         filename: string;
         model: string;
         aligned_to_dark: boolean;
-        vcg_band: "+-2SD";
+        vcg_band: "+-2SD" | "+-1SD" | "+-3SD";
         run_id: string;
     };
     error: string;
@@ -124,7 +124,7 @@ export declare const analysisErrorSchema: z.ZodObject<{
         filename: string;
         model: string;
         aligned_to_dark: boolean;
-        vcg_band: "+-2SD";
+        vcg_band: "+-2SD" | "+-1SD" | "+-3SD";
         run_id: string;
     };
     error: string;
@@ -145,19 +145,19 @@ export declare const analysisResponseSchema: z.ZodObject<{
             filename: z.ZodString;
             model: z.ZodString;
             aligned_to_dark: z.ZodBoolean;
-            vcg_band: z.ZodLiteral<"+-2SD">;
+            vcg_band: z.ZodEnum<["+-2SD", "+-1SD", "+-3SD"]>;
             run_id: z.ZodString;
         }, "strip", z.ZodTypeAny, {
             filename: string;
             model: string;
             aligned_to_dark: boolean;
-            vcg_band: "+-2SD";
+            vcg_band: "+-2SD" | "+-1SD" | "+-3SD";
             run_id: string;
         }, {
             filename: string;
             model: string;
             aligned_to_dark: boolean;
-            vcg_band: "+-2SD";
+            vcg_band: "+-2SD" | "+-1SD" | "+-3SD";
             run_id: string;
         }>;
     }, "strip", z.ZodTypeAny, {
@@ -175,7 +175,7 @@ export declare const analysisResponseSchema: z.ZodObject<{
             filename: string;
             model: string;
             aligned_to_dark: boolean;
-            vcg_band: "+-2SD";
+            vcg_band: "+-2SD" | "+-1SD" | "+-3SD";
             run_id: string;
         };
     }, {
@@ -193,7 +193,7 @@ export declare const analysisResponseSchema: z.ZodObject<{
             filename: string;
             model: string;
             aligned_to_dark: boolean;
-            vcg_band: "+-2SD";
+            vcg_band: "+-2SD" | "+-1SD" | "+-3SD";
             run_id: string;
         };
     }>, z.ZodObject<{
@@ -203,19 +203,19 @@ export declare const analysisResponseSchema: z.ZodObject<{
             filename: z.ZodString;
             model: z.ZodString;
             aligned_to_dark: z.ZodBoolean;
-            vcg_band: z.ZodLiteral<"+-2SD">;
+            vcg_band: z.ZodEnum<["+-2SD", "+-1SD", "+-3SD"]>;
             run_id: z.ZodString;
         }, "strip", z.ZodTypeAny, {
             filename: string;
             model: string;
             aligned_to_dark: boolean;
-            vcg_band: "+-2SD";
+            vcg_band: "+-2SD" | "+-1SD" | "+-3SD";
             run_id: string;
         }, {
             filename: string;
             model: string;
             aligned_to_dark: boolean;
-            vcg_band: "+-2SD";
+            vcg_band: "+-2SD" | "+-1SD" | "+-3SD";
             run_id: string;
         }>;
     }, "strip", z.ZodTypeAny, {
@@ -224,7 +224,7 @@ export declare const analysisResponseSchema: z.ZodObject<{
             filename: string;
             model: string;
             aligned_to_dark: boolean;
-            vcg_band: "+-2SD";
+            vcg_band: "+-2SD" | "+-1SD" | "+-3SD";
             run_id: string;
         };
         error: string;
@@ -234,7 +234,7 @@ export declare const analysisResponseSchema: z.ZodObject<{
             filename: string;
             model: string;
             aligned_to_dark: boolean;
-            vcg_band: "+-2SD";
+            vcg_band: "+-2SD" | "+-1SD" | "+-3SD";
             run_id: string;
         };
         error: string;
@@ -255,7 +255,7 @@ export declare const analysisResponseSchema: z.ZodObject<{
             filename: string;
             model: string;
             aligned_to_dark: boolean;
-            vcg_band: "+-2SD";
+            vcg_band: "+-2SD" | "+-1SD" | "+-3SD";
             run_id: string;
         };
     } | {
@@ -264,7 +264,7 @@ export declare const analysisResponseSchema: z.ZodObject<{
             filename: string;
             model: string;
             aligned_to_dark: boolean;
-            vcg_band: "+-2SD";
+            vcg_band: "+-2SD" | "+-1SD" | "+-3SD";
             run_id: string;
         };
         error: string;
@@ -285,7 +285,7 @@ export declare const analysisResponseSchema: z.ZodObject<{
             filename: string;
             model: string;
             aligned_to_dark: boolean;
-            vcg_band: "+-2SD";
+            vcg_band: "+-2SD" | "+-1SD" | "+-3SD";
             run_id: string;
         };
     } | {
@@ -294,7 +294,7 @@ export declare const analysisResponseSchema: z.ZodObject<{
             filename: string;
             model: string;
             aligned_to_dark: boolean;
-            vcg_band: "+-2SD";
+            vcg_band: "+-2SD" | "+-1SD" | "+-3SD";
             run_id: string;
         };
         error: string;
@@ -303,4 +303,5 @@ export declare const analysisResponseSchema: z.ZodObject<{
 export type AnalysisResult = z.infer<typeof analysisResultSchema>;
 export type AnalysisError = z.infer<typeof analysisErrorSchema>;
 export type AnalysisRow = AnalysisResult | AnalysisError;
+export type VcgBand = z.infer<typeof resultMetaSchema>["vcg_band"];
 //# sourceMappingURL=index.d.ts.map
