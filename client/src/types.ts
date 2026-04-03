@@ -3,6 +3,7 @@ export {
   type AnalysisRow,
   type AnalysisResult,
   type AnalysisError,
+  type VcgBand,
 } from "@circadiem/schema";
 
 export type UploadItem = {
