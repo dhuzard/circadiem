@@ -14,6 +14,18 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const clientDist = path.resolve(__dirname, "../../client/dist");
 
+function getPngDimensions(
+  buffer: Buffer,
+): { width: number; height: number } | null {
+  if (buffer.length < 24) return null;
+  const PNG_SIG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  if (!buffer.subarray(0, 8).equals(PNG_SIG)) return null;
+  return {
+    width: buffer.readUInt32BE(16),
+    height: buffer.readUInt32BE(20),
+  };
+}
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
@@ -61,6 +73,12 @@ export function createApp() {
       if (file.mimetype !== "image/png") {
         return res.status(400).json({
           error: `Invalid file type for ${file.originalname}. Only PNG is supported.`,
+        });
+      }
+      const dims = getPngDimensions(file.buffer);
+      if (dims && (dims.width > 8192 || dims.height > 8192)) {
+        return res.status(400).json({
+          error: `Image ${file.originalname} exceeds maximum dimensions (8192×8192 px).`,
         });
       }
     }

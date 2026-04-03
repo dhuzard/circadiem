@@ -9,9 +9,10 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "start": "node dist/index.js",
-    "test": "../node_modules/.bin/tsc -p tsconfig.json && node --test tests/*.test.mjs"
+    "test": "node --import tsx/esm --test tests/*.test.ts"
   },
   "dependencies": {
+    "@circadiem/schema": "*",
     "cors": "^2.8.5",
     "express": "^4.21.2",
     "express-rate-limit": "^8.3.2",

@@ -27,17 +27,21 @@ Status key: `[x]` done · `[-]` in progress · `[ ]` pending
 
 ## Tests
 
-- [ ] Add server test for JSON repair fallback path (mock OpenAI client)
-- [ ] Add server test for schema validation failure path
-- [ ] Add server test for `labels` JSON parse error → 400
-- [ ] Add server test for missing/malformed Bearer token → 401
-- [ ] Add client-side test for CSV `escapeCsv` edge cases
+- [x] Fix broken test runner (was `*.test.mjs` glob, missing files; now uses `node --import tsx/esm --test *.test.ts`)
+- [x] Add server test for `labels` JSON parse error → 400
+- [x] Add server test for missing/malformed Bearer token → 401
+- [x] Add server test for invalid model identifier → 400
+- [x] Add server test for no files uploaded → 400
+- [x] Add schema tests: out-of-range score, invalid confidence, empty label, error schema
+- [ ] Add server test for JSON repair fallback path (requires OpenAI mock — deferred)
+- [ ] Add server test for schema validation failure path (requires OpenAI mock — deferred)
+- [ ] Add client-side tests for CSV `escapeCsv` edge cases (requires Vitest setup)
 
 ## Architecture
 
-- [ ] Create `packages/schema` workspace to eliminate client/server schema duplication
-- [ ] Add OpenAI request timeout configuration (currently uses SDK default)
-- [ ] Add image dimension / resolution guard to prevent outsized base64 payloads
+- [x] Create `packages/schema` workspace (`@circadiem/schema`) — single source of truth for Zod schemas
+- [x] Add OpenAI request timeout (60 s) via client constructor
+- [x] Add PNG dimension guard (rejects images > 8192×8192 px)
 
 ## Features
 

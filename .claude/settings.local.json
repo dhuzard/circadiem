@@ -7,7 +7,9 @@
       "Bash(cmd.exe /c \"dir c:\\\\Users\\\\damie\\\\Documents\\\\GitHub\\\\circadiem 2>&1\")",
       "Bash(cmd.exe /c \"dir c:\\\\Users\\\\damie\\\\Documents\\\\GitHub\\\\circadiem\")",
       "Bash(npm install:*)",
-      "Bash(node_modules/.bin/tsc -p server/tsconfig.json --noEmit --pretty false)"
+      "Bash(node_modules/.bin/tsc -p server/tsconfig.json --noEmit --pretty false)",
+      "Bash(node --import tsx/esm --test server/tests/*.test.ts)",
+      "Bash(node_modules/.bin/tsc --version)"
     ]
   }
 }

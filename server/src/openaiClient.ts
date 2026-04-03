@@ -50,7 +50,7 @@ export async function analyzeImageWithOpenAI(args: {
   alignedToDark: boolean;
   runId: string;
 }): Promise<AnalysisResult> {
-  const client = new OpenAI({ apiKey: args.apiKey });
+  const client = new OpenAI({ apiKey: args.apiKey, timeout: 60_000 });
   const imageBase64 = args.imageBuffer.toString("base64");
 
   let raw = await requestJson(

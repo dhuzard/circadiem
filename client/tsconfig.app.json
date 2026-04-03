@@ -12,7 +12,10 @@
     "noEmit": true,
     "jsx": "react-jsx",
     "strict": true,
-    "types": ["vite/client"]
+    "types": ["vite/client"],
+    "paths": {
+      "@circadiem/schema": ["../../packages/schema/src/index.ts"]
+    }
   },
   "include": ["src"]
 }
