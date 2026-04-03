@@ -2,6 +2,7 @@ import OpenAI from "openai";
 import { ZodError } from "zod";
 import { analysisResultSchema, type AnalysisResult } from "./schema.js";
 import { SYSTEM_PROMPT, buildUserPrompt } from "./prompt.js";
+import { VCG_BAND } from "./constants.js";
 
 function stripFence(text: string) {
   return text
@@ -64,6 +65,7 @@ export async function analyzeImageWithOpenAI(args: {
   try {
     parsed = JSON.parse(stripFence(raw));
   } catch {
+    console.warn(`[circadiem] JSON parse failed for "${args.label}", attempting repair.`);
     const repairResponse = await client.chat.completions.create({
       model: args.model,
       response_format: { type: "json_object" },
@@ -77,7 +79,11 @@ export async function analyzeImageWithOpenAI(args: {
       ],
     });
     raw = repairResponse.choices[0]?.message?.content?.trim() ?? "";
-    parsed = JSON.parse(stripFence(raw));
+    try {
+      parsed = JSON.parse(stripFence(raw));
+    } catch {
+      throw new Error("JSON repair failed: model returned non-parseable output.");
+    }
   }
 
   const parsedObject =
@@ -93,7 +99,7 @@ export async function analyzeImageWithOpenAI(args: {
         filename: args.filename,
         model: args.model,
         aligned_to_dark: args.alignedToDark,
-        vcg_band: "+-2SD",
+        vcg_band: VCG_BAND,
         run_id: args.runId,
       },
     });

@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run:*)",
+      "Bash(node_modules/.bin/tsc -b client/tsconfig.json --pretty false)",
+      "Bash(cmd.exe /c \"dir c:\\\\Users\\\\damie\\\\Documents\\\\GitHub\\\\circadiem\\\\node_modules /b 2>nul | head\")",
+      "Bash(cmd.exe /c \"dir c:\\\\Users\\\\damie\\\\Documents\\\\GitHub\\\\circadiem 2>&1\")",
+      "Bash(cmd.exe /c \"dir c:\\\\Users\\\\damie\\\\Documents\\\\GitHub\\\\circadiem\")",
+      "Bash(npm install:*)",
+      "Bash(node_modules/.bin/tsc -p server/tsconfig.json --noEmit --pretty false)"
+    ]
+  }
+}

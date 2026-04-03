@@ -5,7 +5,7 @@ import {
   type UploadItem,
 } from "./types";
 
-const STORAGE_KEY = "vision-review-openai-key";
+const STORAGE_KEY = "circadiem-openai-key";
 
 function fileStem(name: string) {
   return name.replace(/\.png$/i, "");
@@ -31,7 +31,10 @@ function downloadBlob(filename: string, content: string, type: string) {
   const anchor = document.createElement("a");
   anchor.href = url;
   anchor.download = filename;
+  anchor.style.display = "none";
+  document.body.appendChild(anchor);
   anchor.click();
+  document.body.removeChild(anchor);
   URL.revokeObjectURL(url);
 }
 
@@ -47,18 +50,26 @@ export function App() {
   const [statusText, setStatusText] = useState<string>("Idle");
 
   useEffect(() => {
-    const saved = window.localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      setApiKey(saved);
-      setRememberKey(true);
+    try {
+      const saved = window.localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        setApiKey(saved);
+        setRememberKey(true);
+      }
+    } catch {
+      // localStorage unavailable (private/sandboxed context)
     }
   }, []);
 
   useEffect(() => {
-    if (rememberKey && apiKey) {
-      window.localStorage.setItem(STORAGE_KEY, apiKey);
-    } else {
-      window.localStorage.removeItem(STORAGE_KEY);
+    try {
+      if (rememberKey && apiKey) {
+        window.localStorage.setItem(STORAGE_KEY, apiKey);
+      } else {
+        window.localStorage.removeItem(STORAGE_KEY);
+      }
+    } catch {
+      // localStorage unavailable (private/sandboxed context)
     }
   }, [apiKey, rememberKey]);
 
@@ -140,7 +151,7 @@ export function App() {
 
   function exportJson() {
     downloadBlob(
-      "vision-review-results.json",
+      "circadiem-results.json",
       JSON.stringify(results, null, 2),
       "application/json",
     );
@@ -187,7 +198,7 @@ export function App() {
       ];
       lines.push(values.map(escapeCsv).join(","));
     }
-    downloadBlob("vision-review-results.csv", lines.join("\n"), "text/csv");
+    downloadBlob("circadiem-results.csv", lines.join("\n"), "text/csv");
   }
 
   async function copyJson() {
@@ -199,7 +210,7 @@ export function App() {
     <main className="page-shell">
       <section className="hero">
         <div>
-          <p className="eyebrow">Vision Circadian Review</p>
+          <p className="eyebrow">Circadiem</p>
           <h1>Review circadian plot PNGs with an OpenAI vision rubric.</h1>
           <p className="lede">
             Batch upload aligned PNGs, run the baseline/burst/fragmentation

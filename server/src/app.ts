@@ -7,6 +7,8 @@ import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { analyzeImageWithOpenAI } from "./openaiClient.js";
 import { analysisResponseSchema, type AnalysisRow } from "./schema.js";
+import rateLimit from "express-rate-limit";
+import { VCG_BAND, ALLOWED_MODEL_PATTERN } from "./constants.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -22,20 +24,32 @@ const upload = multer({
 
 export function createApp() {
   const app = express();
-  app.use(cors());
+  const corsOrigin = process.env.CORS_ORIGIN ?? "*";
+  app.use(cors({ origin: corsOrigin }));
   app.use(express.json({ limit: "1mb" }));
+
+  const analyzeRateLimit = rateLimit({
+    windowMs: 60 * 1000,
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Too many requests. Please wait before retrying." },
+  });
 
   app.get("/health", (_req, res) => {
     res.json({ ok: true });
   });
 
-  app.post("/api/analyze", upload.array("images", 20), async (req, res) => {
+  app.post("/api/analyze", analyzeRateLimit, upload.array("images", 20), async (req, res) => {
     const authHeader = req.header("authorization") ?? "";
     const apiKey = authHeader.startsWith("Bearer ")
       ? authHeader.slice(7).trim()
       : "";
     if (!apiKey) {
       return res.status(401).json({ error: "Missing bearer API key." });
+    }
+    if (!apiKey.startsWith("sk-") || apiKey.length < 20) {
+      return res.status(401).json({ error: "Invalid API key format." });
     }
 
     const files = (req.files as Express.Multer.File[] | undefined) ?? [];
@@ -51,13 +65,21 @@ export function createApp() {
       }
     }
 
-    const labelsInput = req.body.labels
-      ? (JSON.parse(req.body.labels) as string[])
-      : [];
+    let labelsInput: string[] = [];
+    if (req.body.labels) {
+      try {
+        labelsInput = JSON.parse(req.body.labels) as string[];
+      } catch {
+        return res.status(400).json({ error: "Invalid labels format." });
+      }
+    }
     const model =
       typeof req.body.model === "string" && req.body.model.trim()
         ? req.body.model.trim()
         : "gpt-4o-mini";
+    if (!ALLOWED_MODEL_PATTERN.test(model)) {
+      return res.status(400).json({ error: "Invalid model identifier." });
+    }
     const alignedToDark =
       String(req.body.aligned_to_dark ?? "true") !== "false";
     const runId = randomUUID();
@@ -79,6 +101,7 @@ export function createApp() {
             runId,
           });
         } catch (error) {
+          console.error(`[circadiem] Analysis failed for "${label}":`, error);
           return {
             label,
             error:
@@ -87,7 +110,7 @@ export function createApp() {
               filename: file.originalname,
               model,
               aligned_to_dark: alignedToDark,
-              vcg_band: "+-2SD",
+              vcg_band: VCG_BAND,
               run_id: runId,
             },
           };
