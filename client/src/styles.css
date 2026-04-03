@@ -1,0 +1,269 @@
+:root {
+  color-scheme: light;
+  font-family: "Space Grotesk", sans-serif;
+  background:
+    radial-gradient(
+      circle at top left,
+      rgba(223, 108, 53, 0.22),
+      transparent 28%
+    ),
+    radial-gradient(
+      circle at top right,
+      rgba(53, 131, 223, 0.18),
+      transparent 25%
+    ),
+    linear-gradient(180deg, #f8f0e7 0%, #f4f5ef 45%, #eff5f0 100%);
+  color: #1c2220;
+  --panel: rgba(255, 255, 255, 0.82);
+  --panel-border: rgba(28, 34, 32, 0.09);
+  --accent: #b6461e;
+  --accent-dark: #8b3010;
+  --ink-soft: #53605b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.page-shell {
+  width: min(1280px, calc(100vw - 32px));
+  margin: 0 auto;
+  padding: 28px 0 48px;
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: 1.8fr 1fr;
+  gap: 20px;
+  margin-bottom: 22px;
+}
+
+.eyebrow {
+  margin: 0 0 12px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent-dark);
+}
+
+.hero h1,
+.panel h2 {
+  margin: 0;
+}
+
+.hero h1 {
+  font-size: clamp(2.2rem, 4vw, 4.1rem);
+  line-height: 0.98;
+  max-width: 12ch;
+}
+
+.lede,
+.hero-card li,
+.hero-card p,
+.panel span,
+.panel p,
+td,
+th {
+  color: var(--ink-soft);
+}
+
+.hero-card,
+.panel {
+  background: var(--panel);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--panel-border);
+  border-radius: 24px;
+  box-shadow: 0 24px 60px rgba(68, 57, 46, 0.08);
+}
+
+.hero-card {
+  padding: 20px 22px;
+  align-self: end;
+}
+
+.hero-card ul {
+  margin: 10px 0 0;
+  padding-left: 18px;
+}
+
+.panel {
+  padding: 20px 22px 24px;
+  margin-bottom: 18px;
+}
+
+.panel-title,
+.action-row,
+.settings-grid,
+.details-grid {
+  display: flex;
+  gap: 12px;
+}
+
+.panel-title {
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 14px;
+}
+
+.settings-grid {
+  flex-wrap: wrap;
+}
+
+.settings-grid label {
+  display: grid;
+  gap: 8px;
+  min-width: 240px;
+  flex: 1 1 260px;
+}
+
+.settings-grid input[type="password"],
+.settings-grid input[type="text"],
+.settings-grid input:not([type="checkbox"]),
+.file-card input {
+  border: 1px solid rgba(28, 34, 32, 0.12);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.95);
+  padding: 12px 14px;
+}
+
+.toggle {
+  display: flex !important;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+}
+
+.dropzone {
+  display: grid;
+  place-items: center;
+  min-height: 160px;
+  border: 1.5px dashed rgba(182, 70, 30, 0.35);
+  border-radius: 22px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.68),
+    rgba(255, 249, 243, 0.9)
+  );
+  text-align: center;
+  cursor: pointer;
+}
+
+.dropzone input {
+  display: none;
+}
+
+.file-grid,
+.details-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.file-card,
+.result-card {
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 18px;
+  border: 1px solid rgba(28, 34, 32, 0.08);
+  padding: 12px;
+}
+
+.file-card img {
+  width: 100%;
+  height: 180px;
+  object-fit: cover;
+  border-radius: 12px;
+  margin-bottom: 10px;
+}
+
+.primary-button,
+.secondary-button,
+.ghost-button {
+  border: none;
+  border-radius: 999px;
+  padding: 11px 16px;
+  cursor: pointer;
+}
+
+.primary-button {
+  background: linear-gradient(135deg, var(--accent), #d36a25);
+  color: white;
+}
+
+.secondary-button {
+  background: rgba(28, 34, 32, 0.08);
+  color: #17201d;
+}
+
+.ghost-button {
+  background: transparent;
+  color: var(--accent-dark);
+  padding-inline: 0;
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 10px 8px;
+  border-bottom: 1px solid rgba(28, 34, 32, 0.08);
+}
+
+summary {
+  display: flex;
+  justify-content: space-between;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: #f3f1ec;
+  padding: 12px;
+  border-radius: 14px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 12px;
+}
+
+.error-text {
+  color: #a1251d;
+}
+
+.empty-state {
+  margin: 0;
+}
+
+@media (max-width: 900px) {
+  .hero {
+    grid-template-columns: 1fr;
+  }
+
+  .page-shell {
+    width: min(100vw - 20px, 1280px);
+    padding-top: 16px;
+  }
+}
