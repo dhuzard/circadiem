@@ -11,7 +11,7 @@ export const resultMetaSchema = z.object({
   filename: z.string().min(1),
   model: z.string().min(1),
   aligned_to_dark: z.boolean(),
-  vcg_band: z.literal("+-2SD"),
+  vcg_band: z.enum(["+-2SD", "+-1SD", "+-3SD"]),
   run_id: z.string().min(1),
 });
 
@@ -42,3 +42,4 @@ export const analysisResponseSchema = z.object({
 export type AnalysisResult = z.infer<typeof analysisResultSchema>;
 export type AnalysisError = z.infer<typeof analysisErrorSchema>;
 export type AnalysisRow = AnalysisResult | AnalysisError;
+export type VcgBand = z.infer<typeof resultMetaSchema>["vcg_band"];
