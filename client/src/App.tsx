@@ -6,173 +6,32 @@ import {
   useRef,
   useState,
 } from "react";
-import * as XLSX from "xlsx";
 import {
-  analysisResponseSchema,
   type AnalysisRow,
   type UploadItem,
   type VcgBand,
+  analysisResponseSchema,
 } from "./types";
-
-const STORAGE_KEY = "circadiem-openai-key";
-const THEME_STORAGE_KEY = "circadiem-theme";
-const RUN_HISTORY_STORAGE_KEY = "circadiem-run-history-v1";
-const MAX_HISTORY_RUNS = 25;
-
-const CURATED_MODELS = [
-  "gpt-4o-mini",
-  "gpt-4o",
-  "gpt-4.1-mini",
-  "gpt-4.1",
-  "o4-mini",
-] as const;
-
-const VCG_BAND_OPTIONS: readonly VcgBand[] = ["+-2SD", "+-1SD", "+-3SD"];
-
-type ThemeMode = "system" | "light" | "dark";
-type FileProgressStatus = "idle" | "queued" | "analyzing" | "done" | "error";
-
-type FileProgress = {
-  status: FileProgressStatus;
-  message?: string;
-};
-
-type ScoreKey =
-  | "baseline_light"
-  | "dark_onset_burst"
-  | "dark_irregularity"
-  | "midnight_fragmentation"
-  | "pre_light_decline"
-  | "pre_dark_anticipation";
-
-type SessionRun = {
-  runId: string;
-  createdAt: string;
-  model: string;
-  alignedToDark: boolean;
-  vcgBand: VcgBand;
-  results: AnalysisRow[];
-};
-
-const SCORE_COLUMNS: ReadonlyArray<{
-  key: ScoreKey;
-  short: string;
-  label: string;
-}> = [
-  { key: "baseline_light", short: "B", label: "Baseline" },
-  { key: "dark_onset_burst", short: "O", label: "Burst" },
-  { key: "dark_irregularity", short: "I", label: "Irregularity" },
-  { key: "midnight_fragmentation", short: "F", label: "Fragmentation" },
-  { key: "pre_light_decline", short: "D", label: "Decline" },
-  { key: "pre_dark_anticipation", short: "A", label: "Anticipation" },
-];
-
-function fileStem(name: string) {
-  return name.replace(/\.png$/i, "");
-}
-
-function isErrorRow(
-  row: AnalysisRow,
-): row is Extract<AnalysisRow, { error: string }> {
-  return "error" in row;
-}
-
-function escapeCsv(value: unknown) {
-  const text = String(value ?? "");
-  if (/[",\n]/.test(text)) {
-    return `"${text.replace(/"/g, '""')}"`;
-  }
-  return text;
-}
-
-function downloadBlob(filename: string, blob: Blob) {
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filename;
-  anchor.style.display = "none";
-  document.body.appendChild(anchor);
-  anchor.click();
-  document.body.removeChild(anchor);
-  URL.revokeObjectURL(url);
-}
-
-function toExportRows(rows: AnalysisRow[]) {
-  return rows.map((row) => ({
-    label: row.label,
-    baseline_light: isErrorRow(row) ? "" : row.baseline_light,
-    dark_onset_burst: isErrorRow(row) ? "" : row.dark_onset_burst,
-    dark_irregularity: isErrorRow(row) ? "" : row.dark_irregularity,
-    midnight_fragmentation: isErrorRow(row) ? "" : row.midnight_fragmentation,
-    pre_light_decline: isErrorRow(row) ? "" : row.pre_light_decline,
-    pre_dark_anticipation: isErrorRow(row) ? "" : row.pre_dark_anticipation,
-    confidence: isErrorRow(row) ? "" : row.confidence,
-    flags: isErrorRow(row) ? "" : row.flags.join("|"),
-    notes: isErrorRow(row) ? "" : row.notes,
-    filename: row.meta.filename,
-    model: row.meta.model,
-    aligned_to_dark: row.meta.aligned_to_dark,
-    vcg_band: row.meta.vcg_band,
-    run_id: row.meta.run_id,
-    error: isErrorRow(row) ? row.error : "",
-  }));
-}
-
-function parseRunHistory(raw: string | null): SessionRun[] {
-  if (!raw) {
-    return [];
-  }
-  try {
-    const decoded = JSON.parse(raw) as unknown;
-    if (!Array.isArray(decoded)) {
-      return [];
-    }
-    const parsed: SessionRun[] = [];
-    for (const entry of decoded) {
-      if (!entry || typeof entry !== "object") {
-        continue;
-      }
-      const record = entry as Record<string, unknown>;
-      if (
-        typeof record.runId !== "string" ||
-        typeof record.createdAt !== "string" ||
-        typeof record.model !== "string" ||
-        typeof record.alignedToDark !== "boolean" ||
-        typeof record.vcgBand !== "string" ||
-        !VCG_BAND_OPTIONS.includes(record.vcgBand as VcgBand) ||
-        !Array.isArray(record.results)
-      ) {
-        continue;
-      }
-      const parsedResults = analysisResponseSchema.parse({
-        results: record.results,
-      }).results;
-      parsed.push({
-        runId: record.runId,
-        createdAt: record.createdAt,
-        model: record.model,
-        alignedToDark: record.alignedToDark,
-        vcgBand: record.vcgBand as VcgBand,
-        results: parsedResults,
-      });
-    }
-    return parsed;
-  } catch {
-    return [];
-  }
-}
-
-function scoreFor(row: AnalysisRow, key: ScoreKey) {
-  return isErrorRow(row) ? null : row[key];
-}
-
-function shortRunId(id: string) {
-  return id.slice(0, 8);
-}
+import {
+  CURATED_MODELS,
+  SCORE_COLUMNS,
+  VCG_BAND_OPTIONS,
+  type FileProgress,
+  type ThemeMode,
+} from "./lib/constants";
+import { fileStem, isErrorRow, scoreFor, shortRunId } from "./lib/results";
+import { exportCsv, exportJson, exportXlsx } from "./lib/export";
+import {
+  type AnalyzeOptions,
+  analyzeSingle,
+  analyzeWithStream,
+} from "./lib/api";
+import { useApiKey } from "./hooks/useApiKey";
+import { useTheme } from "./hooks/useTheme";
+import { useRunHistory } from "./hooks/useRunHistory";
 
 export function App() {
-  const [apiKey, setApiKey] = useState("");
-  const [rememberKey, setRememberKey] = useState(false);
+  const { apiKey, setApiKey, rememberKey, setRememberKey } = useApiKey();
   const [model, setModel] = useState<string>(CURATED_MODELS[0]);
   const [alignedToDark, setAlignedToDark] = useState(true);
   const [vcgBand, setVcgBand] = useState<VcgBand>("+-2SD");
@@ -191,9 +50,16 @@ export function App() {
     Record<string, FileProgress>
   >({});
 
-  const [theme, setTheme] = useState<ThemeMode>("system");
-  const [runHistory, setRunHistory] = useState<SessionRun[]>([]);
-  const [comparisonRunIds, setComparisonRunIds] = useState<string[]>([]);
+  const { theme, setTheme } = useTheme();
+  const {
+    runHistory,
+    comparisonRunIds,
+    setComparisonRunIds,
+    comparisonRuns,
+    persistRun,
+    removeRunFromHistory,
+    clearHistory,
+  } = useRunHistory();
 
   const itemsRef = useRef<UploadItem[]>([]);
   useEffect(() => {
@@ -206,39 +72,6 @@ export function App() {
         URL.revokeObjectURL(item.previewUrl);
       }
     };
-  }, []);
-
-  useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        setApiKey(saved);
-        setRememberKey(true);
-      }
-    } catch {
-      // localStorage unavailable
-    }
-
-    try {
-      const savedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
-      if (
-        savedTheme === "system" ||
-        savedTheme === "light" ||
-        savedTheme === "dark"
-      ) {
-        setTheme(savedTheme);
-      }
-    } catch {
-      // localStorage unavailable
-    }
-
-    try {
-      setRunHistory(
-        parseRunHistory(window.localStorage.getItem(RUN_HISTORY_STORAGE_KEY)),
-      );
-    } catch {
-      // localStorage unavailable
-    }
   }, []);
 
   useEffect(() => {
@@ -259,40 +92,6 @@ export function App() {
     })();
   }, []);
 
-  useEffect(() => {
-    try {
-      if (rememberKey && apiKey) {
-        window.localStorage.setItem(STORAGE_KEY, apiKey);
-      } else {
-        window.localStorage.removeItem(STORAGE_KEY);
-      }
-    } catch {
-      // localStorage unavailable
-    }
-  }, [apiKey, rememberKey]);
-
-  useEffect(() => {
-    const root = document.documentElement;
-    if (theme === "system") {
-      root.removeAttribute("data-theme");
-    } else {
-      root.setAttribute("data-theme", theme);
-    }
-
-    try {
-      window.localStorage.setItem(THEME_STORAGE_KEY, theme);
-    } catch {
-      // localStorage unavailable
-    }
-  }, [theme]);
-
-  const comparisonRuns = useMemo(() => {
-    const index = new Map(runHistory.map((run) => [run.runId, run]));
-    return comparisonRunIds
-      .map((id) => index.get(id))
-      .filter((run): run is SessionRun => Boolean(run));
-  }, [comparisonRunIds, runHistory]);
-
   const progressSummary = useMemo(() => {
     const statuses = items.map(
       (item) => fileProgress[item.id]?.status ?? "idle",
@@ -307,51 +106,14 @@ export function App() {
     };
   }, [fileProgress, items]);
 
-  function persistRun(entry: SessionRun) {
-    setRunHistory((current) => {
-      const next = [
-        entry,
-        ...current.filter((run) => run.runId !== entry.runId),
-      ].slice(0, MAX_HISTORY_RUNS);
-      try {
-        window.localStorage.setItem(
-          RUN_HISTORY_STORAGE_KEY,
-          JSON.stringify(next),
-        );
-      } catch {
-        // localStorage unavailable
-      }
-      return next;
-    });
-    setComparisonRunIds((current) =>
-      [entry.runId, ...current.filter((id) => id !== entry.runId)].slice(0, 4),
-    );
-  }
-
-  function removeRunFromHistory(runId: string) {
-    setRunHistory((current) => {
-      const next = current.filter((run) => run.runId !== runId);
-      try {
-        window.localStorage.setItem(
-          RUN_HISTORY_STORAGE_KEY,
-          JSON.stringify(next),
-        );
-      } catch {
-        // localStorage unavailable
-      }
-      return next;
-    });
-    setComparisonRunIds((current) => current.filter((id) => id !== runId));
-  }
-
-  function clearHistory() {
-    setRunHistory([]);
-    setComparisonRunIds([]);
-    try {
-      window.localStorage.removeItem(RUN_HISTORY_STORAGE_KEY);
-    } catch {
-      // localStorage unavailable
-    }
+  function analyzeOptions(): AnalyzeOptions {
+    return {
+      model,
+      alignedToDark,
+      vcgBand,
+      customPromptEnabled,
+      customPrompt,
+    };
   }
 
   function buildUploadItemsFromFiles(nextFiles: File[]) {
@@ -407,180 +169,6 @@ export function App() {
     setError(null);
   }
 
-  function createFormData(batchItems: UploadItem) {
-    const body = new FormData();
-    body.append("images", batchItems.file);
-    body.append("labels", JSON.stringify([batchItems.label]));
-    body.append("model", model);
-    body.append("aligned_to_dark", String(alignedToDark));
-    body.append("vcg_band", vcgBand);
-    if (customPromptEnabled && customPrompt.trim()) {
-      body.append("custom_prompt", customPrompt.trim());
-    }
-    return body;
-  }
-
-  function createBatchFormData(batchItems: UploadItem[]) {
-    const body = new FormData();
-    for (const item of batchItems) {
-      body.append("images", item.file);
-    }
-    body.append("labels", JSON.stringify(batchItems.map((item) => item.label)));
-    body.append("model", model);
-    body.append("aligned_to_dark", String(alignedToDark));
-    body.append("vcg_band", vcgBand);
-    if (customPromptEnabled && customPrompt.trim()) {
-      body.append("custom_prompt", customPrompt.trim());
-    }
-    return body;
-  }
-
-  async function readJsonError(response: Response) {
-    try {
-      const payload = (await response.json()) as { error?: unknown };
-      if (typeof payload.error === "string" && payload.error.trim()) {
-        return payload.error;
-      }
-    } catch {
-      // ignore JSON parse errors
-    }
-    return `Request failed (${response.status}).`;
-  }
-
-  async function analyzeWithStream(batchItems: UploadItem[]) {
-    if (!batchItems.length) {
-      return [] as AnalysisRow[];
-    }
-
-    const response = await fetch("/api/analyze/stream", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey.trim()}`,
-      },
-      body: createBatchFormData(batchItems),
-    });
-
-    if (!response.ok) {
-      throw new Error(await readJsonError(response));
-    }
-
-    if (!response.body) {
-      throw new Error("Streaming response body is unavailable.");
-    }
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    const rowsByIndex = new Map<number, AnalysisRow>();
-    let buffer = "";
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) {
-        break;
-      }
-      buffer += decoder.decode(value, { stream: true });
-
-      while (true) {
-        const splitIndex = buffer.indexOf("\n\n");
-        if (splitIndex < 0) {
-          break;
-        }
-
-        const block = buffer.slice(0, splitIndex).trim();
-        buffer = buffer.slice(splitIndex + 2);
-        if (!block.startsWith("data:")) {
-          continue;
-        }
-
-        const dataText = block
-          .split("\n")
-          .filter((line) => line.startsWith("data:"))
-          .map((line) => line.slice(5).trim())
-          .join("\n");
-
-        if (!dataText) {
-          continue;
-        }
-
-        let payload: unknown;
-        try {
-          payload = JSON.parse(dataText);
-        } catch {
-          continue;
-        }
-
-        if (!payload || typeof payload !== "object") {
-          continue;
-        }
-
-        const event = payload as Record<string, unknown>;
-        if (event.done === true) {
-          continue;
-        }
-
-        const index = typeof event.index === "number" ? event.index : -1;
-        if (index < 0 || index >= batchItems.length) {
-          continue;
-        }
-
-        const item = batchItems[index];
-        const status = typeof event.status === "string" ? event.status : "";
-
-        if (status === "analyzing") {
-          setFileProgress((current) => ({
-            ...current,
-            [item.id]: { status: "analyzing" },
-          }));
-          setStatusText(`Analyzing ${event.label ?? item.label}...`);
-          continue;
-        }
-
-        if (status !== "done" && status !== "error") {
-          continue;
-        }
-
-        const parsed = analysisResponseSchema.parse({
-          results: [event.result],
-        }).results[0];
-
-        rowsByIndex.set(index, parsed);
-        setFileProgress((current) => ({
-          ...current,
-          [item.id]: {
-            status: isErrorRow(parsed) ? "error" : "done",
-            message: isErrorRow(parsed) ? parsed.error : undefined,
-          },
-        }));
-      }
-    }
-
-    const ordered = Array.from({ length: batchItems.length }, (_, index) =>
-      rowsByIndex.get(index),
-    );
-
-    if (ordered.some((row) => !row)) {
-      throw new Error("Stream ended before all results were received.");
-    }
-
-    return ordered as AnalysisRow[];
-  }
-
-  async function analyzeSingle(item: UploadItem) {
-    const response = await fetch("/api/analyze", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey.trim()}`,
-      },
-      body: createFormData(item),
-    });
-    if (!response.ok) {
-      throw new Error(await readJsonError(response));
-    }
-    const payload = await response.json();
-    const parsed = analysisResponseSchema.parse(payload);
-    return parsed.results[0];
-  }
-
   async function runAnalysis() {
     if (!apiKey.trim()) {
       setError("Enter an OpenAI API key.");
@@ -601,7 +189,16 @@ export function App() {
     );
 
     try {
-      const streamedResults = await analyzeWithStream(items);
+      const streamedResults = await analyzeWithStream(
+        items,
+        apiKey,
+        analyzeOptions(),
+        {
+          onProgress: (id, progress) =>
+            setFileProgress((current) => ({ ...current, [id]: progress })),
+          onStatus: setStatusText,
+        },
+      );
       const parsed = analysisResponseSchema.parse({ results: streamedResults });
       setResults(parsed.results);
       setStatusText(`Completed ${parsed.results.length} result(s).`);
@@ -647,7 +244,7 @@ export function App() {
     }));
 
     try {
-      const retried = await analyzeSingle(sourceItem);
+      const retried = await analyzeSingle(sourceItem, apiKey, analyzeOptions());
       setResults((current) => {
         const next = [...current];
         next[index] = retried;
@@ -673,80 +270,6 @@ export function App() {
     } finally {
       setRunning(false);
     }
-  }
-
-  function exportJson() {
-    const blob = new Blob([JSON.stringify(results, null, 2)], {
-      type: "application/json",
-    });
-    downloadBlob("circadiem-results.json", blob);
-  }
-
-  function exportCsv() {
-    const header = [
-      "label",
-      "baseline_light",
-      "dark_onset_burst",
-      "dark_irregularity",
-      "midnight_fragmentation",
-      "pre_light_decline",
-      "pre_dark_anticipation",
-      "confidence",
-      "flags",
-      "notes",
-      "filename",
-      "model",
-      "aligned_to_dark",
-      "vcg_band",
-      "run_id",
-      "error",
-    ];
-
-    const rows = toExportRows(results);
-    const lines = [header.join(",")];
-    for (const row of rows) {
-      lines.push(
-        [
-          row.label,
-          row.baseline_light,
-          row.dark_onset_burst,
-          row.dark_irregularity,
-          row.midnight_fragmentation,
-          row.pre_light_decline,
-          row.pre_dark_anticipation,
-          row.confidence,
-          row.flags,
-          row.notes,
-          row.filename,
-          row.model,
-          row.aligned_to_dark,
-          row.vcg_band,
-          row.run_id,
-          row.error,
-        ]
-          .map(escapeCsv)
-          .join(","),
-      );
-    }
-
-    downloadBlob(
-      "circadiem-results.csv",
-      new Blob([lines.join("\n")], { type: "text/csv" }),
-    );
-  }
-
-  function exportXlsx() {
-    const rows = toExportRows(results);
-    const worksheet = XLSX.utils.json_to_sheet(rows);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Results");
-    const output = XLSX.write(workbook, { type: "array", bookType: "xlsx" });
-    downloadBlob(
-      "circadiem-results.xlsx",
-      new Blob([output], {
-        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      }),
-    );
   }
 
   async function copyJson() {
@@ -1016,21 +539,21 @@ export function App() {
               <button
                 type="button"
                 className="secondary-button"
-                onClick={exportJson}
+                onClick={() => exportJson(results)}
               >
                 Export JSON
               </button>
               <button
                 type="button"
                 className="secondary-button"
-                onClick={exportCsv}
+                onClick={() => exportCsv(results)}
               >
                 Export CSV
               </button>
               <button
                 type="button"
                 className="secondary-button"
-                onClick={exportXlsx}
+                onClick={() => exportXlsx(results)}
               >
                 Export XLSX
               </button>
