@@ -1,11 +1,12 @@
 import cors from "cors";
 import express from "express";
+import type { Request } from "express";
 import multer from "multer";
 import path from "node:path";
 import pLimit from "p-limit";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { analyzeImageWithOpenAI } from "./openaiClient.js";
+import { analyzeImageWithOpenAI, type OpenAIFactory } from "./openaiClient.js";
 import {
   analysisResponseSchema,
   type AnalysisRow,
@@ -18,17 +19,23 @@ import {
   ALLOWED_MODEL_PATTERN,
 } from "./constants.js";
 import { SYSTEM_PROMPT } from "./prompt.js";
+import { createRateLimitStore } from "./rateLimitStore.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const clientDist = path.resolve(__dirname, "../../client/dist");
 
+const PNG_SIG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+function hasPngSignature(buffer: Buffer): boolean {
+  return buffer.length >= 8 && buffer.subarray(0, 8).equals(PNG_SIG);
+}
+
 function getPngDimensions(
   buffer: Buffer,
 ): { width: number; height: number } | null {
   if (buffer.length < 24) return null;
-  const PNG_SIG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-  if (!buffer.subarray(0, 8).equals(PNG_SIG)) return null;
+  if (!hasPngSignature(buffer)) return null;
   return {
     width: buffer.readUInt32BE(16),
     height: buffer.readUInt32BE(20),
@@ -43,7 +50,118 @@ const upload = multer({
   },
 });
 
-export function createApp() {
+/** A request-handling failure with a status code and client-facing message. */
+type RequestFailure = { status: number; error: string };
+
+function isFailure(value: unknown): value is RequestFailure {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "status" in value &&
+    "error" in value
+  );
+}
+
+/** Extract and validate the bearer API key (sk- prefix, >= 20 chars). */
+function parseApiKey(req: Request): string | RequestFailure {
+  const authHeader = req.header("authorization") ?? "";
+  const apiKey = authHeader.startsWith("Bearer ")
+    ? authHeader.slice(7).trim()
+    : "";
+  if (!apiKey) {
+    return { status: 401, error: "Missing bearer API key." };
+  }
+  if (!apiKey.startsWith("sk-") || apiKey.length < 20) {
+    return { status: 401, error: "Invalid API key format." };
+  }
+  return apiKey;
+}
+
+/**
+ * Validate that at least one file was uploaded and each one is a real PNG:
+ * correct MIME, a valid PNG file signature, and within dimension limits.
+ * MIME is client-controlled, so the signature check is what actually guards
+ * against a spoofed image/png payload whose body is not a PNG.
+ */
+function validatePngFiles(files: Express.Multer.File[]): RequestFailure | null {
+  if (!files.length) {
+    return { status: 400, error: "No PNG files uploaded." };
+  }
+  for (const file of files) {
+    if (file.mimetype !== "image/png") {
+      return {
+        status: 400,
+        error: `Invalid file type for ${file.originalname}. Only PNG is supported.`,
+      };
+    }
+    if (!hasPngSignature(file.buffer)) {
+      return {
+        status: 400,
+        error: `Invalid or corrupt PNG: ${file.originalname}`,
+      };
+    }
+    const dims = getPngDimensions(file.buffer);
+    if (dims && (dims.width > 8192 || dims.height > 8192)) {
+      return {
+        status: 400,
+        error: `Image ${file.originalname} exceeds maximum dimensions (8192×8192 px).`,
+      };
+    }
+  }
+  return null;
+}
+
+type AnalyzeOptions = {
+  labelsInput: string[];
+  model: string;
+  vcgBand: string;
+  customPrompt: string | undefined;
+  alignedToDark: boolean;
+};
+
+/** Parse labels/model/vcg_band/custom_prompt/aligned_to_dark from the body. */
+function parseAnalyzeOptions(
+  body: Record<string, unknown>,
+): AnalyzeOptions | RequestFailure {
+  let labelsInput: string[] = [];
+  if (body.labels) {
+    try {
+      labelsInput = JSON.parse(body.labels as string) as string[];
+    } catch {
+      return { status: 400, error: "Invalid labels format." };
+    }
+  }
+  const model =
+    typeof body.model === "string" && body.model.trim()
+      ? body.model.trim()
+      : "gpt-4o-mini";
+  if (!ALLOWED_MODEL_PATTERN.test(model)) {
+    return { status: 400, error: "Invalid model identifier." };
+  }
+  const vcgBand =
+    typeof body.vcg_band === "string" &&
+    (VCG_BAND_OPTIONS as readonly string[]).includes(body.vcg_band)
+      ? body.vcg_band
+      : VCG_BAND;
+  const customPrompt =
+    typeof body.custom_prompt === "string" && body.custom_prompt.trim()
+      ? body.custom_prompt.trim()
+      : undefined;
+  const alignedToDark = String(body.aligned_to_dark ?? "true") !== "false";
+  return { labelsInput, model, vcgBand, customPrompt, alignedToDark };
+}
+
+export type CreateAppOptions = {
+  /**
+   * Optional OpenAI client factory forwarded to every analysis call. Lets
+   * tests inject a fake client; production passes nothing and gets the real
+   * client.
+   */
+  openaiFactory?: OpenAIFactory;
+};
+
+export function createApp(options: CreateAppOptions = {}) {
+  const { openaiFactory } = options;
   const app = express();
   const corsOrigin = process.env.CORS_ORIGIN ?? "*";
   app.use(cors({ origin: corsOrigin }));
@@ -55,6 +173,9 @@ export function createApp() {
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: "Too many requests. Please wait before retrying." },
+    // Defaults to express-rate-limit's in-memory store; uses a Redis-backed
+    // store instead when REDIS_URL is set (see rateLimitStore.ts).
+    store: createRateLimitStore(),
   });
 
   app.get("/health", (_req, res) => {
@@ -66,63 +187,23 @@ export function createApp() {
     analyzeRateLimit,
     upload.array("images", 20),
     async (req, res) => {
-      const authHeader = req.header("authorization") ?? "";
-      const apiKey = authHeader.startsWith("Bearer ")
-        ? authHeader.slice(7).trim()
-        : "";
-      if (!apiKey) {
-        return res.status(401).json({ error: "Missing bearer API key." });
-      }
-      if (!apiKey.startsWith("sk-") || apiKey.length < 20) {
-        return res.status(401).json({ error: "Invalid API key format." });
+      const apiKey = parseApiKey(req);
+      if (isFailure(apiKey)) {
+        return res.status(apiKey.status).json({ error: apiKey.error });
       }
 
       const files = (req.files as Express.Multer.File[] | undefined) ?? [];
-      if (!files.length) {
-        return res.status(400).json({ error: "No PNG files uploaded." });
+      const fileError = validatePngFiles(files);
+      if (fileError) {
+        return res.status(fileError.status).json({ error: fileError.error });
       }
 
-      for (const file of files) {
-        if (file.mimetype !== "image/png") {
-          return res.status(400).json({
-            error: `Invalid file type for ${file.originalname}. Only PNG is supported.`,
-          });
-        }
-        const dims = getPngDimensions(file.buffer);
-        if (dims && (dims.width > 8192 || dims.height > 8192)) {
-          return res.status(400).json({
-            error: `Image ${file.originalname} exceeds maximum dimensions (8192×8192 px).`,
-          });
-        }
+      const options = parseAnalyzeOptions(req.body);
+      if (isFailure(options)) {
+        return res.status(options.status).json({ error: options.error });
       }
-
-      let labelsInput: string[] = [];
-      if (req.body.labels) {
-        try {
-          labelsInput = JSON.parse(req.body.labels) as string[];
-        } catch {
-          return res.status(400).json({ error: "Invalid labels format." });
-        }
-      }
-      const model =
-        typeof req.body.model === "string" && req.body.model.trim()
-          ? req.body.model.trim()
-          : "gpt-4o-mini";
-      if (!ALLOWED_MODEL_PATTERN.test(model)) {
-        return res.status(400).json({ error: "Invalid model identifier." });
-      }
-      const vcgBand =
-        typeof req.body.vcg_band === "string" &&
-        (VCG_BAND_OPTIONS as readonly string[]).includes(req.body.vcg_band)
-          ? req.body.vcg_band
-          : VCG_BAND;
-      const customPrompt =
-        typeof req.body.custom_prompt === "string" &&
-        req.body.custom_prompt.trim()
-          ? req.body.custom_prompt.trim()
-          : undefined;
-      const alignedToDark =
-        String(req.body.aligned_to_dark ?? "true") !== "false";
+      const { labelsInput, model, vcgBand, customPrompt, alignedToDark } =
+        options;
       const runId = randomUUID();
       const limit = pLimit(2);
 
@@ -142,6 +223,7 @@ export function createApp() {
               runId,
               vcgBand,
               systemPrompt: customPrompt,
+              openaiFactory,
             });
           } catch (error) {
             console.error(`[circadiem] Analysis failed for "${label}":`, error);
@@ -174,65 +256,23 @@ export function createApp() {
     analyzeRateLimit,
     upload.array("images", 20),
     async (req, res) => {
-      const authHeader = req.header("authorization") ?? "";
-      const apiKey = authHeader.startsWith("Bearer ")
-        ? authHeader.slice(7).trim()
-        : "";
-      if (!apiKey) {
-        return res.status(401).json({ error: "Missing bearer API key." });
-      }
-      if (!apiKey.startsWith("sk-") || apiKey.length < 20) {
-        return res.status(401).json({ error: "Invalid API key format." });
+      const apiKey = parseApiKey(req);
+      if (isFailure(apiKey)) {
+        return res.status(apiKey.status).json({ error: apiKey.error });
       }
 
       const files = (req.files as Express.Multer.File[] | undefined) ?? [];
-      if (!files.length) {
-        return res.status(400).json({ error: "No PNG files uploaded." });
+      const fileError = validatePngFiles(files);
+      if (fileError) {
+        return res.status(fileError.status).json({ error: fileError.error });
       }
 
-      for (const file of files) {
-        if (file.mimetype !== "image/png") {
-          return res.status(400).json({
-            error: `Invalid file type for ${file.originalname}. Only PNG is supported.`,
-          });
-        }
-        const dims = getPngDimensions(file.buffer);
-        if (dims && (dims.width > 8192 || dims.height > 8192)) {
-          return res.status(400).json({
-            error: `Image ${file.originalname} exceeds maximum dimensions (8192×8192 px).`,
-          });
-        }
+      const options = parseAnalyzeOptions(req.body);
+      if (isFailure(options)) {
+        return res.status(options.status).json({ error: options.error });
       }
-
-      let labelsInput: string[] = [];
-      if (req.body.labels) {
-        try {
-          labelsInput = JSON.parse(req.body.labels) as string[];
-        } catch {
-          return res.status(400).json({ error: "Invalid labels format." });
-        }
-      }
-
-      const model =
-        typeof req.body.model === "string" && req.body.model.trim()
-          ? req.body.model.trim()
-          : "gpt-4o-mini";
-      if (!ALLOWED_MODEL_PATTERN.test(model)) {
-        return res.status(400).json({ error: "Invalid model identifier." });
-      }
-
-      const alignedToDark =
-        String(req.body.aligned_to_dark ?? "true") !== "false";
-      const vcgBand =
-        typeof req.body.vcg_band === "string" &&
-        (VCG_BAND_OPTIONS as readonly string[]).includes(req.body.vcg_band)
-          ? req.body.vcg_band
-          : VCG_BAND;
-      const customPrompt =
-        typeof req.body.custom_prompt === "string" &&
-        req.body.custom_prompt.trim()
-          ? req.body.custom_prompt.trim()
-          : undefined;
+      const { labelsInput, model, vcgBand, customPrompt, alignedToDark } =
+        options;
       const runId = randomUUID();
       const limit = pLimit(2);
 
@@ -264,6 +304,7 @@ export function createApp() {
               runId,
               vcgBand,
               systemPrompt: customPrompt,
+              openaiFactory,
             });
             sendEvent({ index, label, status: "done", result });
             return result;
