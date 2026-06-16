@@ -161,12 +161,14 @@ Analyze one or more circadian activity PNG plots.
 
 **Body** (`multipart/form-data`)
 
-| Field             | Type        | Required | Description                                                        |
-| ----------------- | ----------- | -------- | ------------------------------------------------------------------ |
-| `images`          | File(s)     | Yes      | PNG files, max 20 files × 10 MB                                    |
-| `labels`          | JSON string | No       | `["Label A", "Label B"]` — one per file; defaults to filename stem |
-| `model`           | string      | No       | OpenAI model ID (default `gpt-4o-mini`)                            |
-| `aligned_to_dark` | string      | No       | `"true"` or `"false"` (default `"true"`)                           |
+| Field             | Type        | Required | Description                                                                                      |
+| ----------------- | ----------- | -------- | ------------------------------------------------------------------------------------------------ |
+| `images`          | File(s)     | Yes      | PNG files, max 20 files × 10 MB                                                                  |
+| `labels`          | JSON string | No       | `["Label A", "Label B"]` — one per file; defaults to filename stem                               |
+| `model`           | string      | No       | OpenAI model ID (default `gpt-4o-mini`)                                                          |
+| `aligned_to_dark` | string      | No       | `"true"` or `"false"` (default `"true"`)                                                         |
+| `vcg_band`        | string      | No       | VCG band label: `+-2SD` (default), `+-1SD`, or `+-3SD`. Unknown values fall back to the default. |
+| `custom_prompt`   | string      | No       | Replaces the default system prompt for this run. Omit to use the built-in rubric prompt.         |
 
 **Response** `200 OK`
 
@@ -213,6 +215,58 @@ When a single file fails analysis it returns an error row rather than failing th
 | `400`  | No PNG files, invalid MIME type, malformed labels JSON, invalid model ID, image > 8 192 × 8 192 px |
 | `401`  | Missing or malformed bearer token                                                                  |
 | `429`  | Rate limit exceeded (10 req/min/IP)                                                                |
+
+---
+
+### `POST /api/analyze/stream`
+
+Same inputs, headers, and validation as `POST /api/analyze` (including the `images`, `labels`, `model`, `aligned_to_dark`, `vcg_band`, and `custom_prompt` form fields), but instead of buffering the whole batch it streams per-image progress as **Server-Sent Events** (`Content-Type: text/event-stream`).
+
+Each event is a `data:` line containing a JSON object. The server emits, for every image (by zero-based `index`):
+
+1. An `analyzing` event when the image is dispatched to the model:
+
+   ```json
+   { "index": 0, "label": "Mouse 42 — Day 7", "status": "analyzing" }
+   ```
+
+2. Then either a `done` event with the successful result row, or an `error` event with an error row (same shapes as the rows in `POST /api/analyze`):
+
+   ```json
+   {
+     "index": 0,
+     "label": "Mouse 42 — Day 7",
+     "status": "done",
+     "result": { "...": "analysis result row" }
+   }
+   ```
+
+   ```json
+   {
+     "index": 0,
+     "label": "Mouse 42 — Day 7",
+     "status": "error",
+     "result": { "...": "error row" }
+   }
+   ```
+
+3. After all images are processed, a final terminator event before the stream closes:
+
+   ```json
+   { "done": true }
+   ```
+
+Because work is capped at 2 concurrent OpenAI calls, events from different images may interleave and do not necessarily arrive in `index` order. The same `400`/`401`/`429` error responses apply (returned before the stream begins).
+
+---
+
+### `GET /api/prompt`
+
+Returns the default system prompt (the rubric) used when no `custom_prompt` is supplied.
+
+```json
+{ "prompt": "You are reviewing a circadian activity plot for rodents.\n..." }
+```
 
 ---
 
