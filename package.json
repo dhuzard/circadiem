@@ -28,7 +28,7 @@
     "check": "npm run format:check && npm run typecheck && npm run test"
   },
   "devDependencies": {
-    "concurrently": "^9.1.2",
+    "concurrently": "^10.0.5",
     "prettier": "^3.5.3"
   },
   "engines": {
